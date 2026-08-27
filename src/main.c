@@ -2,24 +2,12 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
-#include <zephy/net/socket.h>
+#include <zephyr/net/socket.h>
 #include <string.h>
 
+#include "shared_payload.h"
+
 LOG_MODULE_REGISTER(edge_aggregator, LOG_LEVEL_INF);
-
-struct  sensor_reading
-{
-    int32_t val1;
-    int32_t val2;
-};
-
-struct  env_payload
-{
-    uint32_t                timestamp;
-    struct sensor_reading   temperature;
-    struct sensor_reading   pressure;
-    struct sensor_reading   humidity;
-};
 
 K_MSGQ_DEFINE(env_msgq, sizeof(struct env_payload), 10, 4);
 
@@ -63,18 +51,26 @@ void    sensor_thread_fn(void *arg1, void *arg2, void *arg3)
 void    processing_thread_fn(void *arg1, void *arg2, void *arg3)
 {
     struct  env_payload data;
-    int                 sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int                 sock = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock < 0)
+    {
+        LOG_ERR("Failed to create a socket: %d", sock);
+        return ;
+    }
     struct  sockaddr_in host_addr;
-
     host_addr.sin_family = AF_INET;
     host_addr.sin_port = htons(8080);
-    inet_pton(AF_INET, "192.0.2.2", &host_addr.sin_addr);
+    zsock_inet_pton(AF_INET, "192.0.2.2", &host_addr.sin_addr);
+
     while (1)
     {
         if (k_msgq_get(&env_msgq, &data, K_FOREVER) == 0)
         {
-            sendto(sock, &data, sizeof(data), 0, (struct sockaddr *)&host_addr, sizeof(host_addr));
-            LOG_INF("Transmitted payload at timestamp %u", data.timestamp);
+            int ret = zsock_sendto(sock, &data, sizeof(data), 0, (struct sockaddr *)&host_addr, sizeof(host_addr));
+            if (ret < 0)
+                LOG_ERR("Socket transmission failed: %d", errno);
+            else
+                LOG_INF("Transmitted payload at timestamp %u", data.timestamp);
         }
     }
 }
