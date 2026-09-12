@@ -1,0 +1,11 @@
+all:
+	west build -b nucleo_f746zg --pristine
+	cc -Wall -Wextra -Werror ./src/host_receiver.c -o test_host
+	renode edge_aggregator.resc
+
+clean:
+	west build -t clean
+	rm test_host
+
+fclean: clean
+	rm -rf build

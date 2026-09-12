@@ -11,28 +11,5 @@
 
 &mac {
     status = "okay";
-    phy-connection-type = "rmii";
-    phy-handle = <&phy0>;
-    pinctrl-0 = <&eth_mdc_pc1
-                 &eth_rxd0_pc4
-                 &eth_rxd1_pc5
-                 &eth_ref_clk_pa1
-                 &eth_mdio_pa2
-                 &eth_crs_dv_pa7
-                 &eth_tx_en_pb11
-                 &eth_txd0_pb12
-                 &eth_txd1_pb13>;
-    pinctrl-names = "default";
-
-    mdio {
-        compatible = "st,stm32-mdio";
-        #address-cells = <1>;
-        #size-cells = <0>;
-        status = "okay";
-
-        phy0: ethernet-phy@0 {
-            compatible = "ethernet-phy";
-            reg = <0>;
-        };
-    };
+    local-mac-address = [02 00 00 00 00 01];
 };

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -17,29 +18,50 @@ void    intHandler(int dummy)
 int     main(void)
 {
     struct sockaddr_in  server_addr, client_addr;
-    socklen_t           addr_len = sizeof(client_addr);
+    socklen_t           addr_len;
     struct env_payload  payload;
     int                 sockfd;
+    struct sigaction    sa;
 
-    signal(SIGINT, intHandler);
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = intHandler;
+    sigaction(SIGINT, &sa, NULL);
+
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0)
+    {
+        perror("Socket creation failed");
+        exit (1);
+    }
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(8080);
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    {
+        perror ("Bind failed");
+        close(sockfd);
+        exit(1);
+    }
     printf("Listening on UDP port 8080\n");
 
     while (keep_running)
     {
         memset(&payload, 0, sizeof(payload));
-        if (recvfrom(sockfd, &payload, sizeof(payload), 0, (struct sockaddr *)&client_addr, &addr_len) > 0)
+        addr_len = sizeof(client_addr);
+        ssize_t read = recvfrom(sockfd, &payload, sizeof(payload), 0, (struct sockaddr *)&client_addr, &addr_len);
+        if (read > 0)
         {
             printf("[Time: %u ms] Temp: %d.%06d C | Press: %d.%06d kPa\n", payload.timestamp, payload.temperature.val1,
-            payload.temperature.val2, payload.pressure.val1, payload.pressure.val2);
+                payload.temperature.val2, payload.pressure.val1, payload.pressure.val2);
+        }
+        else if (read < 0)
+        {
+            if (keep_running == 0)
+                break ;
+            perror("recvfrom failed");
         }
     }
-    close(0);
     close(sockfd);
     printf("\nDaemon terminated cleanly.\n");
     return (0);

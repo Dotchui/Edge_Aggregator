@@ -60,7 +60,7 @@ void    processing_thread_fn(void *arg1, void *arg2, void *arg3)
     struct  sockaddr_in host_addr;
     host_addr.sin_family = AF_INET;
     host_addr.sin_port = htons(8080);
-    zsock_inet_pton(AF_INET, "192.0.2.2", &host_addr.sin_addr);
+    zsock_inet_pton(AF_INET, "192.168.100.1", &host_addr.sin_addr);
 
     while (1)
     {
