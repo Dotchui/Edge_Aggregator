@@ -1,6 +1,9 @@
 all:
 	west build -b nucleo_f746zg --pristine
 	cc -Wall -Wextra -Werror ./src/host_receiver.c -o test_host
+	sudo ip tuntap add dev tap0 mode tap user $USER
+	sudo ip addr add 192.168.100.1/24 dev tap0
+	sudo ip link set tap0 up
 	renode edge_aggregator.resc
 
 clean:

@@ -11,7 +11,7 @@ struct __attribute__((packed)) sensor_reading
 
 struct __attribute__((packed)) env_payload
 {
-    uint32_t                timestamp;
+    uint64_t                timestamp;
     struct sensor_reading   temperature;
     struct sensor_reading   pressure;
     struct sensor_reading   humidity;

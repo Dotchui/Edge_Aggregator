@@ -12,6 +12,8 @@ LOG_MODULE_REGISTER(edge_aggregator, LOG_LEVEL_INF);
 K_MSGQ_DEFINE(env_msgq, sizeof(struct env_payload), 10, 4);
 
 #define BME280_NODE DT_NODELABEL(bme280)
+#define SAMPLES_PER_AVG 5
+#define SPIKE_THRESHOLD_TEMP 35
 
 void    sensor_thread_fn(void *arg1, void *arg2, void *arg3)
 {
@@ -50,7 +52,7 @@ void    sensor_thread_fn(void *arg1, void *arg2, void *arg3)
 
 void    processing_thread_fn(void *arg1, void *arg2, void *arg3)
 {
-    struct  env_payload data;
+    struct env_payload  data;
     int                 sock = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock < 0)
     {
@@ -62,15 +64,49 @@ void    processing_thread_fn(void *arg1, void *arg2, void *arg3)
     host_addr.sin_port = htons(8080);
     zsock_inet_pton(AF_INET, "192.168.100.1", &host_addr.sin_addr);
 
+    int                 sample_count = 0;
+    int32_t             sum_t1 = 0, sum_t2 = 0;
+    int32_t             sum_p1 = 0, sum_p2 = 0;
+    int32_t             sum_h1 = 0, sum_h2 = 0;
+
     while (1)
     {
         if (k_msgq_get(&env_msgq, &data, K_FOREVER) == 0)
         {
-            int ret = zsock_sendto(sock, &data, sizeof(data), 0, (struct sockaddr *)&host_addr, sizeof(host_addr));
-            if (ret < 0)
-                LOG_ERR("Socket transmission failed: %d", errno);
-            else
-                LOG_INF("Transmitted payload at timestamp %u", data.timestamp);
+            if (data.temperature.val1 >= SPIKE_THRESHOLD_TEMP)
+            {
+                LOG_WRN("THERMAL SPIKE DETECTED");
+                zsock_sendto(sock, &data, sizeof(data), 0, (struct sockaddr *)&host_addr, sizeof(host_addr));
+                sample_count = 0;
+                sum_t1 = sum_t2 = sum_p1 = sum_p2 = sum_h1 = sum_h2 = 0;
+                continue ;
+            }
+            sum_t1 += data.temperature.val1;
+            sum_t2 += data.temperature.val2;
+            sum_p1 += data.pressure.val1;
+            sum_p2 += data.pressure.val2;
+            sum_h1 += data.humidity.val1;
+            sum_h2 += data.humidity.val2;
+            sample_count++;
+
+            if (sample_count >= SAMPLES_PER_AVG)
+            {
+                struct env_payload  avg_payload;
+                avg_payload.timestamp = data.timestamp;
+                avg_payload.temperature.val1 = sum_t1 / SAMPLES_PER_AVG;
+                avg_payload.temperature.val2 = (sum_t2 + ((sum_t1 % SAMPLES_PER_AVG) * 1000000)) / SAMPLES_PER_AVG;
+                avg_payload.pressure.val1 = sum_p1 / SAMPLES_PER_AVG;
+                avg_payload.pressure.val2 = (sum_p2 + ((sum_p1 % SAMPLES_PER_AVG) * 1000000)) / SAMPLES_PER_AVG;
+                avg_payload.humidity.val1 = sum_h1 / SAMPLES_PER_AVG;
+                avg_payload.humidity.val2 = (sum_h2 + ((sum_h1 % SAMPLES_PER_AVG) * 1000000)) / SAMPLES_PER_AVG;
+                int ret = zsock_sendto(sock, &avg_payload, sizeof(avg_payload), 0, (struct sockaddr *)&host_addr, sizeof(host_addr));
+                if (ret < 0)
+                    LOG_ERR("Socket transmission failed: %d", errno);
+                else
+                    LOG_INF("Transmitted 10s average payload");
+                sample_count = 0;
+                sum_t1 = sum_t2 = sum_p1 = sum_p2 = sum_h1 = sum_h2 = 0;
+            }
         }
     }
 }

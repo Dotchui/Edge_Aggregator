@@ -52,8 +52,8 @@ int     main(void)
         ssize_t read = recvfrom(sockfd, &payload, sizeof(payload), 0, (struct sockaddr *)&client_addr, &addr_len);
         if (read > 0)
         {
-            printf("[Time: %u ms] Temp: %d.%06d C | Press: %d.%06d kPa\n", payload.timestamp, payload.temperature.val1,
-                payload.temperature.val2, payload.pressure.val1, payload.pressure.val2);
+            printf("[Time: %lu ms] Temp: %d.%06d C | Press: %d.%06d kPa | Hum: %d.%06d %%\n", payload.timestamp, payload.temperature.val1,
+                payload.temperature.val2, payload.pressure.val1, payload.pressure.val2, payload.humidity.val1, payload.humidity.val2);
         }
         else if (read < 0)
         {
